@@ -147,6 +147,43 @@ function ValentineFlow() {
     }
   }, [])
 
+  const deleteDate = async (row) => {
+    setBusy(true)
+    // photos first, so the bucket does not keep orphans
+    const photos = (memories[row.id] || []).map((m) => m.photo_url).filter(Boolean)
+    try {
+      if (photos.length) {
+        await supabase.storage.from('memories').remove(photos)
+      }
+    } catch {
+      /* a missing file should not block the date from going away */
+    }
+    try {
+      const { error: memErr } = await supabase.from('memories').delete().eq('date_id', row.id)
+      if (memErr) throw memErr
+      const { error } = await supabase.from('dates').delete().eq('id', row.id)
+      if (error) throw error
+      setDbMsg('Date deleted.')
+    } catch (e) {
+      setDbMsg(`Could not delete that date: ${e.message}`)
+      setBusy(false)
+      return false
+    }
+    const nextDates = dates.filter((d) => d.id !== row.id)
+    const nextMems = { ...memories }
+    delete nextMems[row.id]
+    setDates(nextDates)
+    setMemories(nextMems)
+    persistLocal(nextDates, nextMems)
+    if (selected?.id === row.id) {
+      setSelected(null)
+      setView('dates')
+    }
+    setBusy(false)
+    playPop()
+    return true
+  }
+
   const persistLocal = (nextDates, nextMems) => {
     try {
       localStorage.setItem('valentine-dates', JSON.stringify(nextDates))
@@ -251,6 +288,8 @@ function ValentineFlow() {
           dates={dates}
           ready={datesReady}
           memories={memories}
+          busy={busy}
+          onDelete={deleteDate}
           onPick={(d) => {
             setSelected(d)
             setView('date-detail')
@@ -535,7 +574,8 @@ function LoveNote({ text }) {
   )
 }
 
-function DatesView({ dates, ready, memories, onPick }) {
+function DatesView({ dates, ready, memories, busy, onPick, onDelete }) {
+  const [confirming, setConfirming] = useState(null)
   const today = todayISO()
   const upcoming = dates.filter((d) => d.date >= today).sort((a, b) => a.date.localeCompare(b.date))
   const past = dates.filter((d) => d.date < today).sort((a, b) => b.date.localeCompare(a.date))
@@ -547,12 +587,12 @@ function DatesView({ dates, ready, memories, onPick }) {
     const isPast = d.date < today
     const days = Math.round((new Date(d.date + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000)
     return (
-      <button
-        key={d.id}
-        type="button"
-        className={`date-card${isPast ? ' past-card' : ''}`}
-        onClick={() => onPick(d)}
-      >
+      <div key={d.id} className="dc-wrap">
+        <button
+          type="button"
+          className={`date-card${isPast ? ' past-card' : ''}`}
+          onClick={() => onPick(d)}
+        >
         <div className="dc-top">
           <span className="dc-date">{prettyDate(d.date)}</span>
           <span className="dc-badge">{isPast ? '♥ MEMORY' : '☆ UPCOMING'}</span>
@@ -567,7 +607,17 @@ function DatesView({ dates, ready, memories, onPick }) {
         <div className="dc-count">
           {count ? `${count} photo${count > 1 ? 's' : ''} saved` : 'tap to add a memory photo'}
         </div>
-      </button>
+        </button>
+        <button
+          type="button"
+          className="dc-del"
+          disabled={busy}
+          aria-label={`Delete the date on ${prettyDate(d.date)}`}
+          onClick={() => setConfirming(d)}
+        >
+          ✕ delete
+        </button>
+      </div>
     )
   }
 
@@ -581,6 +631,42 @@ function DatesView({ dates, ready, memories, onPick }) {
 
       <h2>PAST DATES · MEMORIES</h2>
       {past.length ? past.map(card) : <p className="empty-hint">past dates will appear here with your photos.</p>}
+
+      {confirming && (
+        <div className="confirm-veil" onClick={() => !busy && setConfirming(null)}>
+          <div className="confirm-card" onClick={(e) => e.stopPropagation()}>
+            <span className="confirm-heart">♡</span>
+            <p className="confirm-title">DELETE THIS DATE?</p>
+            <p className="confirm-body">
+              {prettyDate(confirming.date)} · {confirming.activity}
+              <br />
+              Its photos and memories will be gone too. This cannot be undone.
+            </p>
+            <div className="btn-row">
+              <button
+                type="button"
+                className="pixel-btn wine"
+                disabled={busy}
+                onClick={async () => {
+                  const ok = await onDelete(confirming)
+                  setConfirming(null)
+                  return ok
+                }}
+              >
+                {busy ? 'DELETING…' : 'YES, DELETE'}
+              </button>
+              <button
+                type="button"
+                className="pixel-btn ghost"
+                disabled={busy}
+                onClick={() => setConfirming(null)}
+              >
+                KEEP IT
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -216,6 +216,13 @@ body {
   background: var(--paper);
   color: var(--pink-700);
 }
+.pixel-btn.wine {
+  background: var(--wine, #7d1133);
+  border-color: #4d0a20;
+  color: #ffd9e4;
+  box-shadow: 0 5px 0 #4d0a20, 0 9px 0 rgba(36, 4, 15, 0.25);
+}
+.pixel-btn.wine:active { box-shadow: 0 1px 0 #4d0a20; }
 .pixel-btn.mint {
   background: #c8ead9;
   border-color: #4f7d6b;
@@ -230,6 +237,70 @@ body {
 /* the No button runs away */
 .no-btn { position: relative; transition: transform 0.18s ease, left 0.18s ease, top 0.18s ease; }
 .no-btn:hover, .no-btn:focus-visible { transform: translate(var(--run-x, 40%), var(--run-y, -30%)); }
+
+/* ---------- dates: delete ---------- */
+.dc-wrap { position: relative; margin: 10px 0; }
+.dc-wrap .date-card { margin: 0; }
+.dc-del {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  padding: 5px 7px;
+  background: rgba(125, 17, 51, 0.1);
+  border: 2px solid var(--wine, #7d1133);
+  color: var(--wine, #7d1133);
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+.dc-del:hover,
+.dc-del:focus-visible {
+  opacity: 1;
+  background: var(--wine, #7d1133);
+  color: #ffe15c;
+  transform: scale(1.06);
+}
+.dc-del:active { transform: scale(0.94); }
+.dc-del:disabled { opacity: 0.4; cursor: wait; }
+.dc-wrap .dc-top { padding-right: 78px; }
+
+.confirm-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(36, 4, 15, 0.72);
+  backdrop-filter: blur(3px);
+  animation: veilIn 0.18s ease both;
+}
+@keyframes veilIn { from { opacity: 0; } to { opacity: 1; } }
+.confirm-card {
+  width: min(340px, 100%);
+  background: var(--paper);
+  border: 3px solid var(--wine, #7d1133);
+  box-shadow: 0 8px 0 rgba(92, 15, 45, 0.5), 0 20px 34px rgba(36, 4, 15, 0.4);
+  padding: 18px 16px 14px;
+  text-align: center;
+  animation: confirmPop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+@keyframes confirmPop {
+  from { opacity: 0; transform: translateY(10px) scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+.confirm-heart { font-size: 26px; color: var(--wine, #7d1133); line-height: 1; }
+.confirm-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--wine, #7d1133);
+  margin: 8px 0 6px;
+}
+.confirm-body { font-size: 17px; line-height: 1.5; color: #7c5464; margin: 0; }
 
 /* ---------- choices ---------- */
 .choice-grid {
