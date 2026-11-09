@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from './lib/supabase.js'
+import { primeNotes, takeNote } from './lib/loveNotes.js'
+import { celebrate, sprinkle } from './lib/celebrate.js'
+import { installClickSounds, playYay, playPop, playSwoon } from './lib/sfx.js'
 import LoveBurst from './components/LoveBurst.jsx'
 import DatePickerModal from './components/DatePickerModal.jsx'
 import successGif from './assets/medias/success-date-scheduled.gif'
@@ -15,9 +18,9 @@ const ACTIVITIES = [
   'SURPRISE ME',
 ]
 
-// Sweet notes shown at the right moments (edit me to make it personal!).
+// Shown only if the AI writer cannot answer in time.
 const NOTES = {
-  yes: `yay, you said yes!
+  yes: `yay, you said yes, precious!
 you just made my whole week.
 i cannot stop smiling at my screen right now.
 
@@ -77,6 +80,33 @@ function ValentineFlow() {
   const [memories, setMemories] = useState({})
   const [dbMsg, setDbMsg] = useState('')
   const [busy, setBusy] = useState(false)
+  const [notes, setNotes] = useState({})
+
+  // Show a note that is already written and cached. The pool refills itself
+  // in the background, so nothing ever waits on the writer.
+  const compose = useCallback((moment) => {
+    const ready = takeNote(moment)
+    if (ready) {
+      setNotes((n) => ({ ...n, [moment]: ready }))
+      return
+    }
+    setNotes((n) => ({ ...n, [moment]: NOTES[moment] }))
+    primeNotes('fresh').then(() => {
+      const late = takeNote(moment)
+      if (late) setNotes((n) => ({ ...n, [moment]: late }))
+    })
+  }, [])
+
+  // On open: fill the note pool (10 per moment) and turn on the little taps.
+  useEffect(() => {
+    primeNotes()
+    return installClickSounds()
+  }, [])
+
+  const backToDates = () => {
+    setSelected(null)
+    setView('dates')
+  }
 
   // load dates + memories once from Supabase
   useEffect(() => {
@@ -144,6 +174,9 @@ function ValentineFlow() {
       setDates(next)
       setSaved(row)
       setStep('its-a-date')
+      compose('itsADate')
+      celebrate()
+      playYay()
     } catch (e) {
       setDbMsg(`Could not save the date: ${e.message} (it is still kept in this browser)`)
       const next = [...dates, row]
@@ -173,6 +206,8 @@ function ValentineFlow() {
         .single()
       if (insErr) throw insErr
       setMemories((m) => ({ ...m, [dateRow.id]: [...(m[dateRow.id] || []), mem] }))
+      sprinkle()
+      playPop()
     } catch (e) {
       setDbMsg(`Photo could not be added: ${e.message}`)
     } finally {
@@ -205,8 +240,7 @@ function ValentineFlow() {
     <div className="stage">
       <button
         type="button"
-        className="top-link"
-        style={pickerOpen ? { display: 'none' } : undefined}
+        className={`top-link${pickerOpen ? ' is-hidden' : ''}`}
         onClick={() => setView(view === 'dates' ? 'flow' : 'dates')}
       >
         {view === 'dates' ? '‹ back' : '♥ our dates'}
@@ -217,9 +251,12 @@ function ValentineFlow() {
           dates={dates}
           ready={datesReady}
           memories={memories}
-          selected={selected}
-          setSelected={setSelected}
-          onBack={() => setView('flow')}
+          onPick={(d) => {
+            setSelected(d)
+            setView('date-detail')
+            compose('afterDate')
+            playSwoon()
+          }}
         />
       )}
 
@@ -235,7 +272,16 @@ function ValentineFlow() {
               <h1 className="pixel-title">WILL YOU GO OUT WITH ME?</h1>
               <p className="pixel-sub">choose wisely... (the bear believes in you)</p>
               <div className="btn-row">
-                <button type="button" className="pixel-btn" onClick={() => setStep('yay')}>
+                <button
+                  type="button"
+                  className="pixel-btn"
+                  onClick={() => {
+                    setStep('yay')
+                    compose('yes')
+                    celebrate()
+                    playYay()
+                  }}
+                >
                   YES ♥
                 </button>
                 <button
@@ -263,8 +309,8 @@ function ValentineFlow() {
                 <img src={flyingKiss} alt="A bear sending you a flying kiss" />
               </div>
               <h1 className="pixel-title">YAY!</h1>
-              <p className="pixel-sub">i'm so glad you said yes.</p>
-              <LoveNote text={NOTES.yes} from="gelo" />
+              <p className="pixel-sub">i'm so glad you said yes, precious.</p>
+              <LoveNote text={notes.yes} from="gelo" />
               <button type="button" className="pixel-btn" onClick={() => setStep('pick-date')}>
                 PRESS TO CONTINUE →
               </button>
@@ -316,6 +362,8 @@ function ValentineFlow() {
                   onConfirm={(next) => {
                     setDate(next)
                     setPickerOpen(false)
+                    sprinkle()
+                    playPop()
                   }}
                 />
               )}
@@ -379,13 +427,13 @@ function ValentineFlow() {
                 <span className="gif-corner br">✦</span>
                 <img src={successGif} alt="Two bears celebrating your date" />
               </div>
-              <h1 className="pixel-title">IT'S A DATE!</h1>
+              <h1 className="pixel-title">IT'S A DATE, PRECIOUS!</h1>
               <div className="info-card">
                 <div className="row"><span>DATE:</span><b>{prettyDate(saved?.date)}</b></div>
                 <div className="row"><span>ACTIVITY:</span><b>{saved?.activity}</b></div>
                 {saved?.note && <div className="row"><span>NOTE:</span><b>{saved.note}</b></div>}
               </div>
-              <LoveNote text={NOTES.itsADate} from="gelo" />
+              <LoveNote text={notes.itsADate} from="gelo" />
               <div className="btn-row">
                 <button type="button" className="pixel-btn" onClick={() => setView('dates')}>
                   SEE OUR DATES →
@@ -405,6 +453,17 @@ function ValentineFlow() {
 
       {step === 'its-a-date' && <LoveBurst trigger />}
 
+      {view === 'date-detail' && selected && (
+        <DateDetail
+          dateRow={selected}
+          memories={memories}
+          busy={busy}
+          note={notes.afterDate}
+          onUpload={uploadMemory}
+          onBack={backToDates}
+        />
+      )}
+
       <div className="progress-dots" aria-hidden="true">
         {STEPS.map((s) => (
           <span key={s} className={s === step ? 'on' : ''} />
@@ -413,53 +472,70 @@ function ValentineFlow() {
 
       {dbMsg && <div className="notice-banner">{dbMsg}</div>}
       {busy && <div className="toast">saving…</div>}
-      {selected && <DateDetail dateRow={selected} memories={memories} busy={busy} onUpload={uploadMemory} onClose={() => setSelected(null)} onBack={() => setSelected(null)} />}
     </div>
   )
 }
 
 // A retro OS-style love-note window with typewriter text.
 function LoveNote({ text }) {
-  const reduced = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  const [shown, setShown] = useState(reduced ? text.length : 0)
+  const content = text || ''
+  const reduced =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const [shown, setShown] = useState(0)
   useEffect(() => {
-    if (reduced) return
+    if (reduced || !content) return undefined
     const id = setInterval(() => {
       setShown((s) => {
-        if (s >= text.length) {
+        if (s >= content.length) {
           clearInterval(id)
           return s
         }
-        return s + 2
+        return s + 1
       })
-    }, 24)
+    }, 22)
     return () => clearInterval(id)
-  }, [text, reduced])
+  }, [content, reduced])
 
   // keep the line breaks, drop any stray trailing backslashes
-  const pretty = text
+  // keep the line breaks, drop any stray trailing backslashes,
+  // and never let a gap grow past one blank line
+  const pretty = (reduced ? content : content.slice(0, shown))
     .split(/\r?\n/)
     .map((line) => line.replace(/\\+$/, ''))
     .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
 
   return (
     <div className="note-window">
       <div className="note-titlebar">
         <span>✦ love_note.txt</span>
-        <button type="button" className="note-close" aria-label="Close note" onClick={() => setShown(text.length)}>
+        <button
+          type="button"
+          className="note-close"
+          aria-label="Show the whole note"
+          onClick={() => setShown(content.length)}
+        >
           ✕
         </button>
       </div>
-      <div className="note-body">
-        {pretty.slice(0, shown)}
-        {shown < text.length && <span className="note-caret">▼</span>}
-      </div>
-      {shown >= text.length && <div className="note-heart">♥</div>}
+      {content ? (
+        <div className="note-body">
+          {pretty}
+          {!reduced && shown < content.length && <span className="note-caret">▼</span>}
+          {shown >= content.length && <div className="note-heart">♥</div>}
+        </div>
+      ) : (
+        <div className="note-body note-writing">
+          writing something sweet for you… <span className="note-dots" />
+        </div>
+      )}
     </div>
   )
 }
 
-function DatesView({ dates, ready, memories, setSelected }) {
+function DatesView({ dates, ready, memories, onPick }) {
   const today = todayISO()
   const upcoming = dates.filter((d) => d.date >= today).sort((a, b) => a.date.localeCompare(b.date))
   const past = dates.filter((d) => d.date < today).sort((a, b) => b.date.localeCompare(a.date))
@@ -475,7 +551,7 @@ function DatesView({ dates, ready, memories, setSelected }) {
         key={d.id}
         type="button"
         className={`date-card${isPast ? ' past-card' : ''}`}
-        onClick={() => setSelected(d)}
+        onClick={() => onPick(d)}
       >
         <div className="dc-top">
           <span className="dc-date">{prettyDate(d.date)}</span>
@@ -509,7 +585,7 @@ function DatesView({ dates, ready, memories, setSelected }) {
   )
 }
 
-function DateDetail({ dateRow, memories, busy, onUpload, onBack }) {
+function DateDetail({ dateRow, memories, busy, onUpload, onBack, note }) {
   const list = memories[dateRow.id] || []
   return (
     <div className="memories-wrap screen">
@@ -550,8 +626,8 @@ function DateDetail({ dateRow, memories, busy, onUpload, onBack }) {
 
       {list.length > 0 && (
         <div className="after-note">
-          <span className="after-note-label">a note from gelo</span>
-          <p>{NOTES.afterDate}</p>
+          <span className="after-note-label">a fresh note from gelo</span>
+          <p>{note || 'writing something sweet for you…'}</p>
         </div>
       )}
 

@@ -14,6 +14,7 @@
 --  What it creates:
 --    • public.dates     -> the scheduled dates
 --    • public.memories  -> the photos for each date
+--    • public.love_notes -> the AI-written notes already used
 --    • storage bucket "memories" (public read, upload allowed)
 --    • Row Level Security policies for both tables + the bucket
 --
@@ -135,7 +136,32 @@ create policy "memories bucket delete"
   on storage.objects for delete to anon, authenticated
   using (bucket_id = 'memories');
 
--- ---------- 6. tell the API about the new tables ----------
+-- ---------- 6. love notes (so the AI never repeats itself) ----------
+create table if not exists public.love_notes (
+  id          uuid        primary key default gen_random_uuid(),
+  moment      text        not null default 'general',
+  body        text        not null,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists love_notes_created_idx on public.love_notes (created_at desc);
+
+alter table public.love_notes enable row level security;
+
+drop policy if exists "love_notes read"   on public.love_notes;
+drop policy if exists "love_notes insert" on public.love_notes;
+drop policy if exists "love_notes delete" on public.love_notes;
+
+create policy "love_notes read"
+  on public.love_notes for select to anon, authenticated using (true);
+create policy "love_notes insert"
+  on public.love_notes for insert to anon, authenticated with check (true);
+create policy "love_notes delete"
+  on public.love_notes for delete to anon, authenticated using (true);
+
+grant select, insert, delete on public.love_notes to anon, authenticated;
+
+-- ---------- 7. tell the API about the new tables ----------
 -- (this is the step that stops "Could not find the table" errors)
 notify pgrst, 'reload schema';
 

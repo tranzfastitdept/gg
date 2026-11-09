@@ -107,6 +107,7 @@ export default function PixelParticles() {
           alt=""
           aria-hidden="true"
           className="petals-overlay"
+          style={{ display: 'none' }}
           onError={() => setPetals(false)}
         />
       )}

@@ -25,36 +25,36 @@ void main(){
   vec2 puv = floor(uv * px) / px;
   vec2 fuv = puv + vec2((m.x - 0.5) * 0.03, (m.y - 0.5) * 0.02);
 
-  // ---- vertical pink gradient ----
-  vec3 top = vec3(0.99, 0.55, 0.72);   // bubblegum
-  vec3 mid = vec3(1.00, 0.78, 0.88);   // baby pink
-  vec3 bot = vec3(0.98, 0.36, 0.58);   // hot pink
-  vec3 col = mix(top, mid, smoothstep(0.25, 0.75, fuv.y));
-  col = mix(col, bot, smoothstep(0.30, 0.02, fuv.y));
+  // ---- pink + burgundy dusk gradient ----
+  vec3 top = vec3(0.09, 0.01, 0.04);   // deep burgundy night
+  vec3 mid = vec3(0.36, 0.04, 0.16);   // burgundy rose
+  vec3 bot = vec3(0.85, 0.13, 0.35);   // glowing pink horizon
+  vec3 col = mix(top, mid, smoothstep(0.05, 0.55, fuv.y));
+  col = mix(col, bot, smoothstep(0.55, 0.04, fuv.y));
 
   // ---- checker dither band near the top (like the screenshots) ----
   float checker = mod(floor(fuv.x * 60.0) + floor(fuv.y * 60.0), 2.0) * 0.5 + 0.5;
-  if (fuv.y > 0.86) col += (checker - 0.5) * 0.10;
+  if (fuv.y > 0.86) col += (checker - 0.5) * 0.05;
 
   // ---- pixel clouds drifting ----
   float cloudY = 0.72 + 0.10 * sin(fuv.x * 6.0 + u_time * 0.10);
   float cl = step(0.90, 0.5 + 0.5 * sin((fuv.x + u_time * 0.006) * 22.0)
                  * sin((fuv.y - cloudY) * 90.0));
-  if (cl > 0.5 && fuv.y > 0.55 && fuv.y < 0.85) col = mix(col, vec3(1.0), 0.35);
+  if (cl > 0.5 && fuv.y > 0.55 && fuv.y < 0.85) col = mix(col, vec3(1.0, 0.62, 0.76), 0.16);
 
   // ---- stepped pink hills along the bottom ----
   float hill1 = 0.16 + 0.05 * sin(fuv.x * 5.0 + 0.6);
   float hill2 = 0.11 + 0.04 * sin(fuv.x * 7.0 + 2.1);
   float hill3 = 0.06 + 0.02 * sin(fuv.x * 9.0 + 4.0);
   float stepH1 = floor(fuv.x * 90.0) / 90.0;
-  if (fuv.y < hill1 + stepH1 * 0.02) col = mix(col, vec3(0.98, 0.52, 0.70), 0.85);
-  if (fuv.y < hill2) col = mix(col, vec3(0.96, 0.40, 0.62), 0.90);
-  if (fuv.y < hill3) col = mix(col, vec3(0.93, 0.26, 0.54), 0.95);
+  if (fuv.y < hill1 + stepH1 * 0.02) col = mix(col, vec3(0.55, 0.06, 0.22), 0.85);
+  if (fuv.y < hill2) col = mix(col, vec3(0.38, 0.03, 0.14), 0.90);
+  if (fuv.y < hill3) col = mix(col, vec3(0.20, 0.01, 0.08), 0.95);
 
   // ---- flower dots along the very bottom ----
   if (fuv.y < 0.035) {
     float dots = step(0.72, hash(vec2(floor(fuv.x * 120.0), 0.0)));
-    col = mix(col, vec3(1.0, 0.70, 0.82), dots * 0.8);
+    col = mix(col, vec3(1.0, 0.45, 0.66), dots * 0.7);
   }
 
   // ---- twinkling sparkles ----
@@ -70,7 +70,9 @@ void main(){
 
   // subtle vignette
   vec2 vc = uv - 0.5;
-  col *= 1.0 - dot(vc, vc) * 0.25;
+  col *= 1.0 - dot(vc, vc) * 0.45;
+  // little extra darkness up top so the pink title pops
+  col *= mix(0.75, 1.0, smoothstep(0.0, 0.55, 1.0 - uv.y));
 
   gl_FragColor = vec4(col, 1.0);
 }
@@ -84,7 +86,10 @@ export default function ShaderBackground() {
     const canvas = canvasRef.current
     if (!canvas) return
     const gl = canvas.getContext('webgl', { antialias: false, alpha: false })
-    if (!gl) return
+    if (!gl) {
+      canvas.style.display = 'none'
+      return
+    }
 
     const compile = (type, src) => {
       const s = gl.createShader(type)
@@ -96,7 +101,10 @@ export default function ShaderBackground() {
     gl.attachShader(program, compile(gl.VERTEX_SHADER, VERT))
     gl.attachShader(program, compile(gl.FRAGMENT_SHADER, FRAG))
     gl.linkProgram(program)
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      canvas.style.display = 'none'
+      return
+    }
     gl.useProgram(program)
 
     const buf = gl.createBuffer()
@@ -131,6 +139,8 @@ export default function ShaderBackground() {
     const draw = () => {
       raf = requestAnimationFrame(draw)
       const t = reduced ? 0 : (performance.now() - t0) / 1000
+      gl.clearColor(0.14, 0.02, 0.06, 1)
+      gl.clear(gl.COLOR_BUFFER_BIT)
       gl.uniform2f(uRes, canvas.width, canvas.height)
       gl.uniform1f(uTime, t)
       gl.uniform2f(uMouse, mouse.current.x, mouse.current.y)
