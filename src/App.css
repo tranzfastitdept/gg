@@ -25,7 +25,7 @@
 
 html, body, #root { height: 100%; }
 
-html { background: #24040f; }
+html { background: #24040f; overscroll-behavior: none; }
 
 body {
   margin: 0;
@@ -37,6 +37,7 @@ body {
     radial-gradient(120% 80% at 50% -10%, #5c0f2d 0%, #3e0a20 55%, #24040f 100%);
   background-color: var(--burgundy-950);
   overflow-x: hidden;
+  overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
@@ -223,6 +224,66 @@ body {
   box-shadow: 0 5px 0 #4d0a20, 0 9px 0 rgba(36, 4, 15, 0.25);
 }
 .pixel-btn.wine:active { box-shadow: 0 1px 0 #4d0a20; }
+
+/* ---------- start screen ---------- */
+.start-gif {
+  width: min(320px, 70vw);
+  animation: bob 2.6s ease-in-out infinite, startCardIn 0.5s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+@keyframes startCardIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.start-title {
+  font-size: clamp(30px, 7.5vw, 60px);
+  margin-top: 22px;
+}
+.start-sub { margin-bottom: 10px; }
+.start-btn {
+  font-size: clamp(20px, 5vw, 30px);
+  padding: 20px 40px;
+  margin-top: 22px;
+  letter-spacing: 2px;
+  animation: startPulse 1.6s ease-in-out infinite;
+  box-shadow:
+    0 8px 0 var(--pink-800),
+    0 14px 0 rgba(122, 16, 56, 0.28),
+    0 0 0 3px rgba(255, 255, 255, 0.25);
+}
+.start-btn:active {
+  transform: translateY(5px);
+  box-shadow: 0 2px 0 var(--pink-800);
+}
+@keyframes startPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+.start-hint {
+  font-family: 'VT323', monospace;
+  font-size: clamp(16px, 3vw, 20px);
+  color: var(--pink-300);
+  margin: 14px 0 0;
+  letter-spacing: 0.5px;
+  text-shadow: 1px 1px 0 rgba(161, 19, 72, 0.6);
+}
+.made-by {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: var(--pink-300);
+  text-shadow: 1px 1px 0 rgba(161, 19, 72, 0.7);
+  pointer-events: none;
+}
+@media (max-width: 480px) {
+  .start-btn {
+    padding: 18px 32px;
+    margin-top: 18px;
+  }
+}
 .pixel-btn.mint {
   background: #c8ead9;
   border-color: #4f7d6b;
@@ -633,22 +694,27 @@ label.field-label {
   inset: 0;
   z-index: 90;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: 14px;
+  padding: 16px;
+  height: 100vh;
+  height: 100dvh;
   background: rgba(74, 14, 36, 0.42);
   backdrop-filter: blur(3px);
   animation: dpFade 0.22s ease-out both;
   overflow-y: auto;
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
+  overscroll-behavior: contain;
 }
 @keyframes dpFade { from { opacity: 0; } to { opacity: 1; } }
 
 .dp-card {
   position: relative;
-  width: min(400px, 94vw);
-  margin: auto;
-  max-height: calc(100vh - 24px);
-  overflow-y: auto;
+  width: min(400px, 100%);
+  margin: 0 auto;
+  height: auto;
+  max-height: none;
+  overflow: visible;
   padding: 20px 18px 16px;
   background: var(--paper);
   background-image: radial-gradient(rgba(240, 98, 146, 0.16) 1px, transparent 1px);
@@ -1116,8 +1182,4 @@ body {
 }
 
 /* never let a very short window hide the picker buttons */
-@media (max-height: 620px) {
-  .dp-head { display: none; }
-  .dp-shortcuts { margin-bottom: 6px; }
-  .dp-day { height: 26px; }
-}
+

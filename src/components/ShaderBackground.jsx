@@ -118,10 +118,16 @@ export default function ShaderBackground() {
     const uTime = gl.getUniformLocation(program, 'u_time')
     const uMouse = gl.getUniformLocation(program, 'u_mouse')
 
+    // Only resize when the width really changes (rotation). Phone address-bar
+    // show/hide while scrolling also fires resize; redrawing the sky then made
+    // it flash dark. The sky is fixed to the screen, so the height is kept.
+    let lastW = 0
     const resize = () => {
+      if (canvas.clientWidth === lastW && canvas.width) return
+      lastW = canvas.clientWidth
       const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
       canvas.width = Math.floor(canvas.clientWidth * dpr)
-      canvas.height = Math.floor(canvas.clientHeight * dpr)
+      canvas.height = Math.floor(window.innerHeight * dpr)
       gl.viewport(0, 0, canvas.width, canvas.height)
     }
     resize()
@@ -132,8 +138,11 @@ export default function ShaderBackground() {
       mouse.current.y = e.clientY / window.innerHeight
     }
     window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerdown', onMove)
+    window.addEventListener('touchmove', onMove, { passive: true })
 
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    // breathing glow that drifts with the touch so the sky reacts
     let raf = 0
     let t0 = performance.now()
     const draw = () => {
@@ -152,6 +161,8 @@ export default function ShaderBackground() {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', resize)
       window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerdown', onMove)
+      window.removeEventListener('touchmove', onMove)
       gl.getExtension('WEBGL_lose_context')?.loseContext()
     }
   }, [])

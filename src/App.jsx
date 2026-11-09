@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from './lib/supabase.js'
-import { primeNotes, takeNote } from './lib/loveNotes.js'
+import { takeNote, hydrateHistory } from './lib/loveNotes.js'
 import { celebrate, sprinkle } from './lib/celebrate.js'
 import { installClickSounds, playYay, playPop, playSwoon } from './lib/sfx.js'
 import LoveBurst from './components/LoveBurst.jsx'
@@ -18,28 +18,17 @@ const ACTIVITIES = [
   'SURPRISE ME',
 ]
 
-// Shown only if the AI writer cannot answer in time.
-const NOTES = {
-  yes: `yay, you said yes, precious!
-you just made my whole week.
-i cannot stop smiling at my screen right now.
-
-you really are my favorite person
-to do everything with.`,
-  itsADate: `IT'S A DATE!
-this is officially us now,
-locked in, no take-backs.
-
-i already cleaned my camera roll
-for our photos.`,
-  afterDate: `thank you for today.
-every second with you felt like
-a little adventure i never want to end.
-
-you make ordinary days feel like magic.`,
+// Fallback lines if the pool is ever empty for a moment.
+const FALLBACK_NOTES = {
+  ask: `will you go out with me, precious?
+it would make every day feel like a celebration.`,
+  yes: `yay, you said yes, precious!\nyou just made my whole week.\ni cannot stop smiling at my screen right now.`,
+  itsADate: `IT'S A DATE, PRECIOUS!\nthis is officially us now,\nlocked in, no take-backs.`,
+  afterDate: `thank you for today, precious.\nevery second with you felt like\na little adventure i never want to end.`,
+  memory: `this photo is my new favourite thing,\nbecause you are in it, precious.`,
 }
 
-const STEPS = ['ask', 'yay', 'pick-date', 'activity', 'its-a-date', 'note']
+const STEPS = ['start', 'ask', 'yay', 'pick-date', 'activity', 'its-a-date', 'note']
 
 export default function App() {
   return <ValentineFlow />
@@ -65,7 +54,7 @@ function prettyDate(iso) {
 }
 
 function ValentineFlow() {
-  const [step, setStep] = useState('ask')
+  const [step, setStep] = useState('start')
   const [pickerOpen, setPickerOpen] = useState(false)
   const [noCount, setNoCount] = useState(0)
   const [date, setDate] = useState('')
@@ -82,24 +71,22 @@ function ValentineFlow() {
   const [busy, setBusy] = useState(false)
   const [notes, setNotes] = useState({})
 
-  // Show a note that is already written and cached. The pool refills itself
-  // in the background, so nothing ever waits on the writer.
+  // Show a fresh note from the local pool, skipping any already shown.
+  // The pool lives in notesPool.js (60+ notes); notesHistory.js tracks
+  // what has been seen so nothing repeats until the pool is exhausted.
   const compose = useCallback((moment) => {
     const ready = takeNote(moment)
     if (ready) {
       setNotes((n) => ({ ...n, [moment]: ready }))
       return
     }
-    setNotes((n) => ({ ...n, [moment]: NOTES[moment] }))
-    primeNotes('fresh').then(() => {
-      const late = takeNote(moment)
-      if (late) setNotes((n) => ({ ...n, [moment]: late }))
-    })
+    setNotes((n) => ({ ...n, [moment]: FALLBACK_NOTES[moment] || FALLBACK_NOTES.yes }))
   }, [])
 
-  // On open: fill the note pool (10 per moment) and turn on the little taps.
+  // On open: hydrate the shown-history from Supabase (best-effort) and
+  // turn on the little tap sounds.
   useEffect(() => {
-    primeNotes()
+    hydrateHistory()
     return installClickSounds()
   }, [])
 
@@ -245,6 +232,7 @@ function ValentineFlow() {
       setMemories((m) => ({ ...m, [dateRow.id]: [...(m[dateRow.id] || []), mem] }))
       sprinkle()
       playPop()
+      compose('memory')
     } catch (e) {
       setDbMsg(`Photo could not be added: ${e.message}`)
     } finally {
@@ -279,6 +267,7 @@ function ValentineFlow() {
         type="button"
         className={`top-link${pickerOpen ? ' is-hidden' : ''}`}
         onClick={() => setView(view === 'dates' ? 'flow' : 'dates')}
+        hidden={step === 'start'}
       >
         {view === 'dates' ? '‹ back' : '♥ our dates'}
       </button>
@@ -301,6 +290,37 @@ function ValentineFlow() {
 
       {view === 'flow' && (
         <div className="screen" key={step}>
+          {step === 'start' && (
+            <>
+              <div className="gif-card start-gif">
+                <span className="gif-corner bl">✦</span>
+                <span className="gif-corner br">✦</span>
+                <img src={dancingBear} alt="A little bear waiting for you" />
+              </div>
+              <h1 className="pixel-title start-title">
+                A QUESTION <span className="accent">WAITS…</span>
+              </h1>
+              <p className="pixel-sub start-sub">
+                someone made this for you, precious.
+                <br />
+                press start when you're ready.
+              </p>
+              <button
+                type="button"
+                className="pixel-btn start-btn"
+                onClick={() => {
+                  setStep('ask')
+                  compose('ask')
+                  playYay()
+                  sprinkle()
+                }}
+              >
+                START ♥
+              </button>
+              <p className="start-hint">tap start - i'll take it from there</p>
+            </>
+          )}
+
           {step === 'ask' && (
             <>
               <div className="gif-card">
@@ -511,6 +531,9 @@ function ValentineFlow() {
 
       {dbMsg && <div className="notice-banner">{dbMsg}</div>}
       {busy && <div className="toast">saving…</div>}
+      {step === 'start' && view === 'flow' && (
+        <p className="made-by">made with gelo, for precious</p>
+      )}
     </div>
   )
 }
